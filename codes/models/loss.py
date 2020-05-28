@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 
 class CharbonnierLoss(nn.Module):
     """Charbonnier Loss (L1)"""
@@ -11,8 +11,39 @@ class CharbonnierLoss(nn.Module):
 
     def forward(self, x, y):
         diff = x - y
-        loss = torch.sum(torch.sqrt(diff * diff + self.eps))
+        loss = torch.mean(torch.sqrt(diff * diff + self.eps))
         return loss
+
+def rgb2y(img):
+    img=img.permute(0,2,3,1).unsqueeze(-2)#b,h,w,1,3
+    yv=torch.Tensor([0.299,0.587,0.114]).reshape([1,1,1,3,1]).cuda()#b,h,w,1,1
+    return torch.matmul(img,yv).squeeze(-1).permute(0,3,1,2).clamp(0,1.0) # b,1,h,w
+
+def grad_loss(output,target):
+    """
+    @param output shape [batch_size,channel,height,width
+    """
+    # output = output.clamp(0,1.0)
+    output = rgb2y(output)
+    target = rgb2y(target)
+    batch_size,channel,height,width = output.shape
+    scharrx=torch.Tensor([-3,0,3,-10,0,10,-3,0,3])/16.0
+    scharrx.requires_grad = False
+    scharry=torch.Tensor([-3,-10,-3,0,0,0,3,10,3])/16.0
+    scharry.requires_grad = False
+    scharrx  = scharrx.reshape([1,1,3,3]).cuda()
+    scharry  = scharry.reshape([1,1,3,3]).cuda()
+
+    output_xy = output.reshape([-1,1,height,width])
+    dx = F.conv2d(output_xy,scharrx,stride = 1, padding =1)
+    dy = F.conv2d(output_xy,scharry,stride = 1, padding =1)
+
+    target_xy = target.reshape([-1,1,height,width])
+    dx_gt = F.conv2d(target_xy,scharrx,stride = 1, padding =1)
+    dy_gt = F.conv2d(target_xy,scharry,stride = 1, padding =1)
+
+    return  F.l1_loss(dx,dx_gt)+\
+            F.l1_loss(dy,dy_gt)
 
 
 # Define GAN loss: [vanilla | lsgan | wgan-gp]

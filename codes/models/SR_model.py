@@ -7,10 +7,15 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 import models.networks as networks
 import models.lr_scheduler as lr_scheduler
 from .base_model import BaseModel
-from models.loss import CharbonnierLoss
+from models.loss import CharbonnierLoss,grad_loss
 
 logger = logging.getLogger('base')
 
+def calPSNR(output,target):
+    """
+    @param output shape b,c,h,w
+    """
+    return 10*torch.log10(1/(1e-6 + torch.mean((output-target)**2)))
 
 class SRModel(BaseModel):
     def __init__(self, opt):
@@ -46,6 +51,7 @@ class SRModel(BaseModel):
             else:
                 raise NotImplementedError('Loss type [{:s}] is not recognized.'.format(loss_type))
             self.l_pix_w = train_opt['pixel_weight']
+            self.grad_w = train_opt['grad_weight']
 
             # optimizers
             wd_G = train_opt['weight_decay_G'] if train_opt['weight_decay_G'] else 0
@@ -89,12 +95,14 @@ class SRModel(BaseModel):
     def optimize_parameters(self, step):
         self.optimizer_G.zero_grad()
         self.fake_H = self.netG(self.var_L)
-        l_pix = self.l_pix_w * self.cri_pix(self.fake_H, self.real_H)
+        l_pix = self.l_pix_w * self.cri_pix(self.fake_H, self.real_H) + self.grad_w*grad_loss(self.fake_H,self.real_H)
+
         l_pix.backward()
         self.optimizer_G.step()
 
         # set log
         self.log_dict['l_pix'] = l_pix.item()
+        self.log_dict['psnr'] = calPSNR(self.fake_H,self.real_H)
 
     def test(self):
         self.netG.eval()

@@ -1,27 +1,27 @@
 #### general settings
-name: 001_EDVRwoTSA_scratch_lr4e-4_600k_REDS_LrCAR4S
+name: 001_EDVRwoTSA_scratch_lr2e-4_600k_REDS_LrCAR4S
 use_tb_logger: true
 model: video_base
 distortion: sr
 scale: 4
-gpu_ids: [0,1,2,3,4,5,6,7]
+gpu_ids: [3,4,1,7]
 
 #### datasets
 datasets:
   train:
-    name: REDS
-    mode: REDS
+    name: Vimeo90K
+    mode: Vimeo90K
     interval_list: [1]
     random_reverse: false
     border_mode: false
-    dataroot_GT: ../datasets/REDS/train_sharp_wval.lmdb
-    dataroot_LQ: ../datasets/REDS/train_sharp_bicubic_wval.lmdb
+    dataroot_GT: ../datasets/vimeo90k/vimeo90k_train_GT.lmdb
+    dataroot_LQ: ../datasets/vimeo90k/vimeo90k_train_LR7frames.lmdb
     cache_keys: ~
 
-    N_frames: 5
+    N_frames: 7
     use_shuffle: true
     n_workers: 3  # per GPU
-    batch_size: 32
+    batch_size: 24
     GT_size: 256
     LQ_size: 64
     use_flip: true
@@ -32,13 +32,13 @@ datasets:
 network_G:
   which_model_G: EDVR
   nf: 64
-  nframes: 5
+  nframes: 7
   groups: 8
   front_RBs: 5
-  back_RBs: 10
+  back_RBs: 40
   predeblur: false
   HR_in: false
-  w_TSA: false
+  w_TSA: true
 
 #### path
 path:
@@ -48,7 +48,7 @@ path:
 
 #### training settings: learning rate scheme, loss
 train:
-  lr_G: !!float 4e-4
+  lr_G: !!float 2e-4
   lr_scheme: CosineAnnealingLR_Restart
   beta1: 0.9
   beta2: 0.99
@@ -61,6 +61,7 @@ train:
 
   pixel_criterion: cb
   pixel_weight: 1.0
+  grad_weight: 0.5
   val_freq: !!float 5e3
 
   manual_seed: 0

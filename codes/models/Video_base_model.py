@@ -7,7 +7,14 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 import models.networks as networks
 import models.lr_scheduler as lr_scheduler
 from .base_model import BaseModel
-from models.loss import CharbonnierLoss
+from models.loss import CharbonnierLoss,grad_loss
+
+def calPSNR(output,target):
+    """
+    @param output shape b,c,h,w
+    """
+    return 10*torch.log10(1/(1e-6 + torch.mean((output-target)**2)))
+
 
 logger = logging.getLogger('base')
 
@@ -45,8 +52,9 @@ class VideoBaseModel(BaseModel):
                 self.cri_pix = CharbonnierLoss().to(self.device)
             else:
                 raise NotImplementedError('Loss type [{:s}] is not recognized.'.format(loss_type))
-            self.l_pix_w = train_opt['pixel_weight']
 
+            self.l_pix_w = train_opt['pixel_weight']
+            self.grad_w = train_opt['grad_weight']
             #### optimizers
             wd_G = train_opt['weight_decay_G'] if train_opt['weight_decay_G'] else 0
             if train_opt['ft_tsa_only']:
@@ -120,13 +128,18 @@ class VideoBaseModel(BaseModel):
 
         self.optimizer_G.zero_grad()
         self.fake_H = self.netG(self.var_L)
+        pixel_loss = self.cri_pix(self.fake_H, self.real_H)
+        g_loss = grad_loss(self.fake_H,self.real_H)
+        l_pix = self.l_pix_w *pixel_loss  + self.grad_w*g_loss
 
-        l_pix = self.l_pix_w * self.cri_pix(self.fake_H, self.real_H)
         l_pix.backward()
         self.optimizer_G.step()
 
         # set log
-        self.log_dict['l_pix'] = l_pix.item()
+        self.log_dict['l_pix'] = pixel_loss.item()
+        self.log_dict['l_grad'] = g_loss.item()
+
+        self.log_dict['psnr'] = calPSNR(self.fake_H,self.real_H).item()
 
     def test(self):
         self.netG.eval()

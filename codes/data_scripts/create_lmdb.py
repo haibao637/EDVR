@@ -15,8 +15,8 @@ import utils.util as util  # noqa: E402
 
 
 def main():
-    dataset = 'DIV2K_demo'  # vimeo90K | REDS | general (e.g., DIV2K, 291) | DIV2K_demo |test
-    mode = 'GT'  # used for vimeo90k and REDS datasets
+    dataset = 'vimeo90k'  # vimeo90K | REDS | general (e.g., DIV2K, 291) | DIV2K_demo |test
+    mode = 'LR'  # used for vimeo90k and REDS datasets
     # vimeo90k: GT | LR | flow
     # REDS: train_sharp, train_sharp_bicubic, train_blur_bicubic, train_blur, train_blur_comp
     #       train_sharp_flowx4
@@ -165,7 +165,7 @@ def vimeo90k(mode):
         txt_file = '../../datasets/vimeo90k/vimeo_septuplet/sep_trainlist.txt'
         H_dst, W_dst = 256, 448
     elif mode == 'LR':
-        img_folder = '../../datasets/vimeo90k/vimeo_septuplet_matlabLRx4/sequences'
+        img_folder = '../../datasets/vimeo90k/vimeo_septuplet/generate/'
         lmdb_save_path = '../../datasets/vimeo90k/vimeo90k_train_LR7frames.lmdb'
         txt_file = '../../datasets/vimeo90k/vimeo_septuplet/sep_trainlist.txt'
         H_dst, W_dst = 64, 112
@@ -194,7 +194,7 @@ def vimeo90k(mode):
     for line in train_l:
         folder = line.split('/')[0]
         sub_folder = line.split('/')[1]
-        all_img_list.extend(glob.glob(osp.join(img_folder, folder, sub_folder, '*')))
+        all_img_list.extend([p for p in glob.glob(osp.join(img_folder, folder, sub_folder, '*')) if p.find("png")>0])
         if mode == 'flow':
             for j in range(1, 4):
                 keys.append('{}_{}_4_n{}'.format(folder, sub_folder, j))
@@ -229,6 +229,8 @@ def vimeo90k(mode):
         print('Finish reading {} images.\nWrite lmdb...'.format(len(all_img_list)))
 
     #### write data to lmdb
+    print((all_img_list[0]))
+
     data_size_per_img = cv2.imread(all_img_list[0], cv2.IMREAD_UNCHANGED).nbytes
     print('data size per image is: ', data_size_per_img)
     data_size = data_size_per_img * len(all_img_list)
